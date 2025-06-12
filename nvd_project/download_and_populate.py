@@ -1,4 +1,4 @@
-# download_and_populate.py
+from datetime import datetime
 import requests
 import gzip
 import os
@@ -33,6 +33,12 @@ def extract_gz(filename):
     print(f"{filename} extracted to {json_filename}")
     return json_filename
 
+def read_json(file_path):
+    """ JSON 파일 읽기 """
+    with open(file_path, "r", encoding="utf-8") as file:
+        data = json.load(file)
+    return data
+
 def insert_data(data):
     """ 데이터베이스에 데이터 삽입 """
     conn = sqlite3.connect(DB_NAME)
@@ -43,36 +49,49 @@ def insert_data(data):
         published_date = item["publishedDate"]
         description = item["cve"]["description"]["description_data"][0]["value"]
 
-        # Severity가 없는 경우 기본값 "UNKNOWN"
-        severity = item.get("impact", {}).get("baseMetricV3", {}).get("cvssV3", {}).get("baseSeverity", "UNKNOWN")
+        # 기본 값
+        severity = "UNKNOWN"
+        base_score = None
+        exploitability_score = None
+        impact_score = None
+        attack_vector = None
+        attack_complexity = None
 
-        # 취약점 제품 정보 추출
+        # CVSS v3 데이터 존재 시 추출
+        if "impact" in item and "baseMetricV3" in item["impact"]:
+            bm = item["impact"]["baseMetricV3"]
+            cvss = bm.get("cvssV3", {})
+            base_score = cvss.get("baseScore")
+            severity = cvss.get("baseSeverity", "UNKNOWN")
+            exploitability_score = bm.get("exploitabilityScore")
+            impact_score = bm.get("impactScore")
+            attack_vector = cvss.get("attackVector")
+            attack_complexity = cvss.get("attackComplexity")
+
+        # 취약 제품 목록
         vulnerable_products = []
-        for node in item["configurations"]["nodes"]:
-            if "cpeMatch" in node:
-                for match in node["cpeMatch"]:
-                    vulnerable_products.append(match["cpe23Uri"])
-
+        for node in item.get("configurations", {}).get("nodes", []):
+            for match in node.get("cpeMatch", []):
+                vulnerable_products.append(match["cpe23Uri"])
         vulnerable_products_str = ", ".join(vulnerable_products)
 
-        # 데이터 삽입
+        # 삽입 쿼리
         try:
             cursor.execute('''
-                INSERT OR REPLACE INTO cve_data (id, publishedDate, description, severity, vulnerableProducts)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (cve_id, published_date, description, severity, vulnerable_products_str))
+                INSERT OR REPLACE INTO cve_data (
+                    id, publishedDate, description, severity, vulnerableProducts,
+                    baseScore, exploitabilityScore, impactScore, attackVector, attackComplexity
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                cve_id, published_date, description, severity, vulnerable_products_str,
+                base_score, exploitability_score, impact_score, attack_vector, attack_complexity
+            ))
         except sqlite3.IntegrityError:
             print(f"Duplicate entry for {cve_id}. Skipping...")
-    
+
     conn.commit()
     conn.close()
     print("Data inserted successfully.")
-
-def read_json(file_path):
-    """ JSON 파일 읽기 """
-    with open(file_path, "r", encoding="utf-8") as file:
-        data = json.load(file)
-    return data
 
 def process_year(year):
     """ 연도별 데이터 처리 """
@@ -82,13 +101,7 @@ def process_year(year):
         data = read_json(json_file)
         insert_data(data)
 
-def main():
-    start_year = int(input("Enter start year (e.g., 2002): "))
-    end_year = int(input("Enter end year (e.g., 2025): "))
-
-    for year in range(start_year, end_year + 1):
-        print(f"\nProcessing data for year: {year}")
-        process_year(year)
-
+# 아래 main()은 자동 실행을 위한 용도는 아님 (auto_update.py에서 호출됨)
 if __name__ == "__main__":
-    main()
+    for y in range(2002, datetime.now().year + 1):
+        process_year(y)
