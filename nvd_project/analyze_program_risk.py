@@ -34,13 +34,13 @@ def analyze_program_risk(program_keyword, version_keyword=None, db_path="nvd_dat
     print(f"[+] 평균 위험도 지수 (Base × Exploit): {average_score}\n")
 
     if average_score >= 20:
-        print("🔴 이 버전은 매우 위험합니다!")
+        print("이 버전은 매우 위험합니다!")
     elif average_score >= 10:
-        print("🟠 보안 위협이 존재합니다. 업그레이드 검토 필요")
+        print("보안 위협이 존재합니다. 업그레이드 검토 필요")
     elif average_score >= 5:
-        print("🟡 낮은 수준의 위험이 있습니다.")
+        print("낮은 수준의 위험이 있습니다.")
     else:
-        print("🟢 보안 위험은 낮은 편입니다.")
+        print("보안 위험은 낮은 편입니다.")
 
     conn.close()
 
