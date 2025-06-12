@@ -71,7 +71,7 @@ def insert_data(data):
         # 취약 제품 목록
         vulnerable_products = []
         for node in item.get("configurations", {}).get("nodes", []):
-            for match in node.get("cpeMatch", []):
+            for match in node.get("cpe_match", []):
                 vulnerable_products.append(match["cpe23Uri"])
         vulnerable_products_str = ", ".join(vulnerable_products)
 
